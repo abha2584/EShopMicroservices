@@ -1,0 +1,9 @@
+version: '3.4'
+
+services:        # Root level
+  catalogdb:     # Service under services
+    image: postgres:15
+
+volumes:         # Root level (NOT under services)
+  postgres_catalog:
+   
