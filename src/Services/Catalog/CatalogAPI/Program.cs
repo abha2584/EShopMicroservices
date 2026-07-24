@@ -1,30 +1,74 @@
+
+
+
+using HealthChecks.UI.Client;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddCarter();
+var assembly = typeof(Program).Assembly;
 builder.Services.AddMediatR(config =>
 {
-	config.RegisterServicesFromAssembly(typeof(Program).Assembly);
+	config.RegisterServicesFromAssembly(assembly);
+	config.AddOpenBehavior(typeof(ValidationBehaviour<,>));
+	config.AddOpenBehavior(typeof(LoggingBehaviour<,>));
 });
+builder.Services.AddValidatorsFromAssembly(assembly);
 
+builder.Services.AddCarter();
 builder.Services.AddMarten(options =>
 {
 	options.Connection(builder.Configuration.GetConnectionString("Database")!);
 	options.DatabaseSchemaName = "catalog";
 }).UseLightweightSessions();
 
+if(builder.Environment.IsDevelopment())
+{
+	builder.Services.InitializeMartenWith<CatalogInitialData>();
+}
+builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
+builder.Services.AddHealthChecks()
+	.AddNpgSql(builder.Configuration.GetConnectionString("Database")!);
 var app = builder.Build();
 
-// Create database schema on startup
-//using (var scope = app.Services.CreateScope())
-//{
-//	var store = scope.ServiceProvider.GetRequiredService<IDocumentStore>();
-//	await store.Storage.ApplyAllConfiguredChangesToDatabaseAsync();
-//}
-
-// Configure the HTTP request pipeline.
 
 app.MapCarter();
+
+//app.UseExceptionHandler(exceptionHandlerApp =>
+//{
+//	exceptionHandlerApp.Run(async context =>
+//	{
+
+//		var exception = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerPathFeature>()?.Error;
+//		if (exception is  null)
+//		{
+//			return;
+//		}
+
+//		var problemDetails = new ProblemDetails
+//		{
+//			Status = context.Response.StatusCode,
+//			Title = exception.Message,
+//			Detail = exception.StackTrace
+//		};
+
+//		var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+//		logger.LogError(exception, exception.Message);
+
+//		context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+//		context.Response.ContentType = "application/json";
+
+//		await context.Response.WriteAsJsonAsync(problemDetails);
+
+//	});
+//});
+
+app.UseExceptionHandler( options => { });
+app.UseHealthChecks("/health" ,
+	 new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+	 {
+		 ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse
+	 });
 app.Run();
