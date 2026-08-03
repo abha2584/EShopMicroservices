@@ -4,6 +4,12 @@ services:        # Root level
   catalogdb:     # Service under services
     image: postgres:15
 
+  basketdb:
+    image: postgres:15
+
+  distributedcache:
+    image: redis
+
   catalogapi:
     image: ${DOCKER_REGISTRY-}catalogapi
     build:
@@ -12,5 +18,6 @@ services:        # Root level
 
 volumes:         # Root level (NOT under services)
   postgres_catalog:
+  postgres_basket:
    
 
