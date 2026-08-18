@@ -1,5 +1,8 @@
 
 using BuildingBlocks.Exceptions.Handler;
+using Discount.Grpc;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,16 +34,37 @@ builder.Services.AddStackExchangeRedisCache(options =>
 //	var cache = provider.GetRequiredService<IDistributedCache>();
 //	return new CachedBasketRepository(basketRepository, cache);
 //});
+
+
+builder.Services.AddGrpcClient<DiscountProtoService.DiscountProtoServiceClient>(options =>
+{
+	options.Address = new Uri(builder.Configuration["GrpcSettings:DiscountUrl"]!);
+})
+.ConfigurePrimaryHttpMessageHandler(() =>
+{
+	var handler = new HttpClientHandler
+	{
+		ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+	};
+
+	return handler;
+});
 builder.Services.AddExceptionHandler<CustomExceptionHandler>();
 
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+	.AddNpgSql(builder.Configuration.GetConnectionString("Database")!)
+	.AddRedis(builder.Configuration.GetConnectionString("Redis")!);
 
 
-//add services to the container
+
 var app = builder.Build();
 
 app.MapCarter();
 app.UseExceptionHandler(options =>{});
-app.UseHealthChecks("/health");
-// configure the HTTP request pipeline
+app.UseHealthChecks("/health" ,
+	new HealthCheckOptions
+	{
+		ResponseWriter =UIResponseWriter.WriteHealthCheckUIResponse
+	});
+
 app.Run();
